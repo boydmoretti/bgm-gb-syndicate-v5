@@ -267,6 +267,7 @@ let S = {
   adminOrders: [],
   adminBusy: false,
   adminErr: '',
+  costFlyerSigned: { path: null, url: null },
   adminOpenOrderIds: new Set()
 };
 
@@ -855,8 +856,55 @@ async function uploadFlyerImage(file, bucket, field) {
     render();
     return;
   }
-  const publicUrl = `${SUPA_URL}/storage/v1/object/public/${bucket}/${path}`;
-  await saveBatchField(field, publicUrl);
+  // Cost flyer bucket is private (2026-09-29 fix) -- store just the object
+  // path. The customer flyer bucket stays public, keep saving its full URL.
+  const valueToSave = bucket === COST_FLYER_BUCKET
+    ? path
+    : `${SUPA_URL}/storage/v1/object/public/${bucket}/${path}`;
+  await saveBatchField(field, valueToSave);
+}
+
+// Cost flyer bucket is private (2026-09-29 fix, same pattern as V3) -- new
+// uploads store just the object path. Rows saved before the fix hold a full
+// public URL, so strip that back to the path; both kinds then preview through
+// a short-lived signed URL that needs the admin's auth token.
+const COST_FLYER_BUCKET = 'syn-cost-flyer-images';
+function costFlyerPath(v) {
+  if (!v) return null;
+  const marker = `/object/public/${COST_FLYER_BUCKET}/`;
+  const i = v.indexOf(marker);
+  return i >= 0 ? v.slice(i + marker.length) : v;
+}
+
+// Cached per-path in S.costFlyerSigned so a render loop doesn't re-request it
+// every time; a new upload (new path) triggers a fresh sign.
+async function loadCostFlyerSignedUrl(path) {
+  S.costFlyerSigned = { path, url: null };
+  try {
+    const res = await storageAuth(`object/sign/${COST_FLYER_BUCKET}/${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expiresIn: 3600 })
+    });
+    if (res.status === 401) { adminSessionExpired(); return; }
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.signedURL && S.costFlyerSigned.path === path) {
+      S.costFlyerSigned.url = SUPA_URL + '/storage/v1' + data.signedURL;
+      render();
+    }
+  } catch (e) {}
+}
+
+function costFlyerPreviewHtml(b) {
+  const path = costFlyerPath(b.hero_image_url);
+  if (!path) return '';
+  if (S.costFlyerSigned.path !== path) {
+    loadCostFlyerSignedUrl(path); // sync-sets S.costFlyerSigned.path immediately, fetch resolves async and re-renders
+    return `<p style="font-size:12.5px;color:var(--ink-faint);margin-top:8px">Loading preview…</p>`;
+  }
+  if (!S.costFlyerSigned.url) return `<p style="font-size:12.5px;color:var(--ink-faint);margin-top:8px">Loading preview…</p>`;
+  return `<img src="${esc(S.costFlyerSigned.url)}" style="width:100%;max-width:400px;margin-top:8px;border-radius:4px;border:1px solid var(--border);display:block" />`;
 }
 
 async function replaceProductList(text) {
@@ -1048,7 +1096,7 @@ function adminBatchTab(b) {
         <label>Cost flyer (your reference only — customers never see this)</label>
         <input type="file" accept="image/*" onchange="uploadFlyerImage(this.files[0], 'syn-cost-flyer-images', 'hero_image_url')" />
       </div>
-      ${b.hero_image_url ? `<img src="${esc(b.hero_image_url)}" style="width:100%;max-width:400px;margin-top:8px;border-radius:4px;border:1px solid var(--border);display:block" />` : ''}
+      ${costFlyerPreviewHtml(b)}
     </div>
     <div class="panel">
       <h2>Markup</h2>
