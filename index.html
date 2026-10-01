@@ -571,7 +571,7 @@ function cartSubtotalFromPending() { return cartSubtotal(); }
 function paymentHtml() {
   const o = S.pendingOrder || {};
   const total = Number(o.total_due || 0);
-  const venmoTotal = Math.round(total * (1 + venmoPct(S.batch) / 100));
+  const venmoTotal = Math.round(total * (1 + orderVenmoPct(S.pendingOrder, S.batch) / 100));
   return `
     ${plateHtml()}
     <div class="wrap flow-page">
@@ -589,7 +589,7 @@ function paymentHtml() {
         <button class="btn" style="background:var(--good-bg);color:var(--good);border:1px solid var(--good)" onclick="S.payChoice='usdc';render()">Click Here — Get Wallet Address<br><span style="font-weight:400;font-size:10.5px">Ethereum network — no fee — ${money(total)}</span></button>
         ${S.batch && S.batch.venmo_enabled === false
           ? `<button class="btn" disabled style="background:var(--border);color:var(--ink-faint);cursor:not-allowed">Venmo<br><span style="font-weight:400;font-size:10.5px">Not available for this buy</span></button>`
-          : `<button class="btn" style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue)" onclick="S.payChoice='venmo';render()">Click Here — Open Venmo &amp; Pay<br><span style="font-weight:400;font-size:10.5px">+${venmoPct(S.batch)}% fee — ${money(venmoTotal)}</span></button>`}
+          : `<button class="btn" style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue)" onclick="S.payChoice='venmo';render()">Click Here — Open Venmo &amp; Pay<br><span style="font-weight:400;font-size:10.5px">+${orderVenmoPct(S.pendingOrder, S.batch)}% fee — ${money(venmoTotal)}</span></button>`}
       </div>
 
       ${S.payChoice === 'usdc' ? `
@@ -603,7 +603,7 @@ function paymentHtml() {
       ${S.payChoice === 'venmo' ? `
       <div class="pay-panel venmo">
         <h3 class="venmo-h">Venmo</h3>
-        <div class="sub">+${venmoPct(S.batch)}% fee included — pay ${money(venmoTotal)}</div>
+        <div class="sub">+${orderVenmoPct(S.pendingOrder, S.batch)}% fee included — pay ${money(venmoTotal)}</div>
         <div class="warn-box">⚠ The "What's this for?" note will auto-fill with "Reimbursement" — leave it exactly as-is. Writing anything else (or changing it) can get the payment flagged and sent back by Venmo.</div>
         <a class="venmo-link-btn" href="venmo://paycharge?txn=pay&amp;recipients=Boyd-Moretti&amp;amount=${venmoTotal.toFixed(2)}&amp;note=Reimbursement">Open Venmo &amp; Pay</a>
         <div class="wallet-row" style="margin-top:10px"><code>${VENMO_HANDLE}</code><button class="copy-btn" onclick="copyVenmo()">Copy Handle</button></div>
