@@ -226,6 +226,21 @@
   }
 
   @media (max-width: 420px) { .wrap { padding: 0 14px; } .cartbar { padding: 10px 14px; margin: 0; } }
+
+  /* Photos layout (layout switch step B): two-column card grid, same as V3's */
+  .card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 16px; padding-bottom: 130px; }
+  @media (max-width: 560px) { .card-grid { grid-template-columns: 1fr; } }
+  .pcard { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; }
+  .pcard.oos .photo-wrap, .pcard.oos .price-block { opacity: .45; }
+  .pcard .photo-wrap { aspect-ratio: 1 / 1; border-radius: 6px; overflow: hidden; background: var(--surface-2); border: 1px solid var(--border-soft); display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+  .pcard .photo-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pcard .photo-wrap .no-photo { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); text-align: center; padding: 0 10px; }
+  .pcard .name { font-family: var(--font-display); font-size: 17px; font-weight: 700; text-align: center; }
+  .pcard .spec { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint); letter-spacing: .03em; text-align: center; margin-top: 2px; }
+  .pcard .tested { display: flex; justify-content: center; margin-top: 7px; }
+  .pcard .untested { display: block; text-align: center; margin-top: 7px; }
+  .pcard .price-block { text-align: center; margin-top: 10px; }
+  .pcard .qty button { width: 30px; height: 30px; }
 </style>
 </head>
 <body>
@@ -464,6 +479,42 @@ function manifestRowHtml(p) {
     </div>`;
 }
 
+function productCardHtml(p) {
+  const price = Number(p.price);
+  const testedHtml = p.tested_note ? `<div class="tested">${esc(p.tested_note)}</div>` : `<div class="untested">Not third-party tested</div>`;
+  const oos = p.in_stock === false;
+  const qty = S.cart[p.id] || 0;
+  const photoHtml = p.image_url
+    ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy" />`
+    : `<div class="no-photo">Photo<br>Coming Soon</div>`;
+  return `
+    <div class="pcard ${oos ? 'oos' : ''}">
+      <div class="photo-wrap">${photoHtml}</div>
+      <div class="name">${esc(p.name)}</div>
+      ${p.spec ? `<div class="spec">${esc(p.spec)}</div>` : ''}
+      ${oos ? `<div style="text-align:center"><div class="soldout-stamp">SOLD OUT!</div></div>` : testedHtml}
+      <div class="price-block">
+        <div class="price">${money(price)}</div>
+        <div class="qty">
+          <button ${oos ? 'disabled' : ''} onclick="changeQty('${p.id}',-1)" aria-label="Decrease">–</button>
+          <output>${qty}</output>
+          <button ${oos ? 'disabled' : ''} onclick="changeQty('${p.id}',1)" aria-label="Increase">+</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+// Store layout for the open round, picked per round in admin (layout switch step B).
+// Missing or unknown falls back to this portal's original look.
+function storeLayout() {
+  const l = S.batch && S.batch.layout;
+  return l === 'photos' || l === 'list' ? l : 'list';
+}
+function productsHtml() {
+  if (storeLayout() === 'list') return `<div class="manifest">${S.products.map(manifestRowHtml).join('') || `<p style="text-align:center;color:var(--ink-faint);padding:30px 0">Nothing listed yet.</p>`}</div>`;
+  return `<div class="card-grid">${S.products.map(productCardHtml).join('') || `<p style="grid-column:1/-1;text-align:center;color:var(--ink-faint);padding:30px 0">Nothing listed yet.</p>`}</div>`;
+}
+
 function browseHtml() {
   return `
     ${plateHtml()}
@@ -478,7 +529,7 @@ function browseHtml() {
       ${S.batch ? batchInfoHtml(S.batch) : ''}
       <p class="intro">This buy's exclusive list. <b>Products marked Third-Party Tested include a COA</b> — that's not cheap to do, and it's baked into the price.</p>
       <p class="intro" style="font-size:12.5px;color:var(--ink-faint);margin-top:-4px">COAs are posted in the WhatsApp group only, not here. Vendor names stay private on purpose — that protects the people I source from.</p>
-      <div class="manifest">${S.products.map(manifestRowHtml).join('') || `<p style="text-align:center;color:var(--ink-faint);padding:30px 0">Nothing listed yet.</p>`}</div>
+      ${productsHtml()}
     </div>
     ${actionbarHtml()}`;
 }
@@ -807,7 +858,7 @@ async function selectAdminBatch(id) {
 async function createNewBatch() {
   const label = prompt('Batch / flyer label for this new round:');
   if (!label) return;
-  const res = await apiAuth('syn_batches', { method: 'POST', body: JSON.stringify({ label, status: 'closed', markup_percent: 0, shipping_fee: 0, admin_fee: 0 }) });
+  const res = await apiAuth('syn_batches', { method: 'POST', body: JSON.stringify({ label, status: 'closed', layout: 'list', markup_percent: 0, shipping_fee: 0, admin_fee: 0 }) });
   if (res.status === 401) { adminSessionExpired(); return; }
   const data = await res.json();
   await loadAdminData();
@@ -911,8 +962,23 @@ async function confirmMarkupSave() {
 async function saveBatchField(field, value) {
   const b = currentAdminBatch();
   if (!b) return;
-  const res = await apiAuth(`syn_batches?id=eq.${b.id}`, { method: 'PATCH', body: JSON.stringify({ [field]: value }) });
+  let res;
+  try {
+    res = await apiAuth(`syn_batches?id=eq.${b.id}`, { method: 'PATCH', body: JSON.stringify({ [field]: value }) });
+  } catch (e) {
+    S.adminErr = `Could not confirm whether that setting saved (the connection dropped). Tap Reload and check it before changing it again. (${e.message})`;
+    render();
+    return;
+  }
   if (res.status === 401) { adminSessionExpired(); return; }
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    let detail = errBody;
+    try { detail = JSON.parse(errBody).message || errBody; } catch {}
+    S.adminErr = `Could not save that setting, nothing was changed. (${res.status}: ${detail || 'unknown error'})`;
+    render();
+    return;
+  }
   await loadAdminData();
   render();
 }
@@ -1216,6 +1282,13 @@ function adminBatchTab(b) {
         <div style="display:flex;gap:8px">
           <input type="date" class="admin-input-text" style="width:150px" id="closeDateOnly" value="${b.close_date ? localDateStr(new Date(b.close_date)) : ''}" onchange="saveCloseDateTime()" />
           <input type="time" class="admin-input-text" style="width:120px" id="closeTimeOnly" value="${b.close_date ? localTimeStr(new Date(b.close_date)) : ''}" onchange="saveCloseDateTime()" />
+        </div>
+      </div>
+      <div class="field-row">
+        <label>Store layout</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="mini-btn ${(b.layout || 'list') === 'photos' ? 'on' : ''}" onclick="saveBatchField('layout', 'photos')">Photos</button>
+          <button class="mini-btn ${(b.layout || 'list') === 'list' ? 'on' : ''}" onclick="saveBatchField('layout', 'list')">List</button>
         </div>
       </div>
       <div class="field-row">
