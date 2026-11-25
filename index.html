@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-<title>~BgM~ Group Buy Syndicate</title>
+<title>~BgM~ Group Buy</title>
 <style>
   :root {
     --bg: #f2ecd9;
@@ -439,7 +439,7 @@ function plateHtml() {
     <header class="plate">
       <div class="wrap">
         <div class="mark" onclick="goAdmin()">~BgM~</div>
-        <h1 class="wordmark">Group Buy Syndicate</h1>
+        <h1 class="wordmark">Group Buy</h1>
         ${label ? `<div class="batch-line">${label}</div>` : ''}
         <div class="status-row">
           <span class="pill open dot">Open</span>
@@ -452,7 +452,7 @@ function plateHtml() {
 function closedHtml() {
   return `
     <header class="plate" style="border-bottom:none">
-      <div class="wrap"><div class="mark" onclick="goAdmin()">~BgM~</div><h1 class="wordmark">Group Buy Syndicate</h1></div>
+      <div class="wrap"><div class="mark" onclick="goAdmin()">~BgM~</div><h1 class="wordmark">Group Buy</h1></div>
     </header>
     <div class="closed-view">
       <div class="icon">🔒</div>
@@ -776,7 +776,7 @@ function render() {
     else if (S.step === 'checkout') html = checkoutHtml();
     else if (S.step === 'payment') html = paymentHtml();
   }
-  app.innerHTML = html + `<footer class="sig">~BgM~ BioStack Community — Group Buy Syndicate</footer>`;
+  app.innerHTML = html + `<footer class="sig">~BgM~ BioStack Community — Group Buy</footer>`;
 }
 
 // ============================================================
@@ -1212,7 +1212,7 @@ function printPackingSlip(orderId) {
   const grandTotal = Number(order.total_due) + venmoFee;
   const items = (order.items || []).map(i => `<tr><td>${esc(i.name)}${i.spec ? ' (' + esc(i.spec) + ')' : ''}</td><td style="text-align:right;padding-left:36px">${i.qty}</td><td style="text-align:right;padding-left:36px">${money(Number(i.unit_price))}</td><td style="text-align:right;padding-left:36px">${money((Number(i.unit_price) * i.qty))}</td></tr>`).join('');
   const html = `
-    <h2>~BgM~ Group Buy Syndicate</h2>
+    <h2>~BgM~ Group Buy</h2>
     <p><b>${esc(b ? b.label : '')}</b></p>
     <p>Name: ${esc(order.customer_name)}<br>Phone: ${esc(order.customer_phone)}<br>Contact: ${esc(order.contact_to_boyd || '')}</p>
     <table style="width:100%;border-collapse:collapse;margin-top:10px">
@@ -1243,7 +1243,7 @@ function adminHtml() {
   return `
     <div class="wrap admin-pad">
       <div class="admin-topbar">
-        <div class="title">~BgM~ Syndicate Admin</div>
+        <div class="title">~BgM~ Group Buy Admin</div>
         <div style="display:flex;gap:8px">
           <button class="ghost-small-btn" onclick="goStore()">View Storefront</button>
           <button class="logout-btn" onclick="adminLogout()">Log Out</button>
@@ -1614,7 +1614,7 @@ function printBoydSummary() {
   if (!b) return;
   const { rows, qtyTotal, costTotal } = computeBoydSummaryTotals();
   const html = `
-    <h2>~BgM~ Group Buy Syndicate — Boyd's Summary</h2>
+    <h2>~BgM~ Group Buy — Boyd's Summary</h2>
     <p><b>${esc(b.label)}</b></p>
     <table style="width:100%;border-collapse:collapse;margin-top:10px">
       <thead><tr><th style="text-align:left">Product</th><th style="text-align:right;padding-left:36px">Qty</th><th style="text-align:right;padding-left:36px">Cost Total</th></tr></thead>
